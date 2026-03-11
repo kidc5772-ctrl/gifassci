@@ -1,0 +1,9 @@
+customtkinter>=5.2.0
+Pillow>=10.0.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+numba>=0.64.0
+
+# Optional GPU support
+# For NVIDIA: pip install cupy-cuda12x (replace 12x with your CUDA version)
+# For AMD: Numba is already included above and works with AMD GPUs

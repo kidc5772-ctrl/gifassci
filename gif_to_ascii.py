@@ -518,6 +518,7 @@ class ASCIIExporter:
     @staticmethod
     def _generate_js_frames(ascii_frames: List[Tuple[List[str], List[List[Tuple[int, int, int]]]]]) -> str:
         """Generate JavaScript array of frames with colors"""
+        import json
         frames_js = []
         for ascii_frame, colors in ascii_frames:
             frame_html = "<pre>"
@@ -525,10 +526,13 @@ class ASCIIExporter:
                 for x, char in enumerate(line):
                     color = colors[y][x] if y < len(colors) and x < len(colors[y]) else (255, 255, 255)
                     hex_color = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
-                    frame_html += f'<span style="color: {hex_color};">{char}</span>'
+                    # Escape HTML special characters
+                    char_escaped = char.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                    frame_html += f'<span style="color: {hex_color};">{char_escaped}</span>'
                 frame_html += "\n"
             frame_html += "</pre>"
-            frames_js.append(f'"{frame_html}"')
+            # Use JSON to properly escape the string
+            frames_js.append(json.dumps(frame_html))
         return "[" + ", ".join(frames_js) + "]"
     
     @staticmethod
@@ -673,6 +677,7 @@ class GIFToASCIIApp(ctk.CTk):
         self.file_path = None
         self.audio_path = None  # Store extracted audio for MP4 export
         self.is_mp4 = False  # Track if current file is MP4
+        self.slider_timer = None  # Debounce timer for sliders
         
         self._setup_ui()
         self._setup_styles()
@@ -957,7 +962,7 @@ class GIFToASCIIApp(ctk.CTk):
         self._display_frame(0)
     
     def _animate(self):
-        """Animation loop"""
+        """Animation loop - non-blocking"""
         if not self.is_playing or not self.ascii_frames:
             return
         
@@ -972,12 +977,20 @@ class GIFToASCIIApp(ctk.CTk):
                 return
         
         delay = int(1000 / self.fps)
+        # Use after() instead of blocking - allows UI to respond
         self.after(delay, self._animate)
     
     def _on_config_change(self, *args):
-        """Handle configuration changes"""
-        if self.gif_frames and not self.is_converting:
-            self._convert_frames()
+        """Handle configuration changes with debouncing"""
+        if not self.gif_frames or self.is_converting:
+            return
+        
+        # Cancel previous timer if exists
+        if self.slider_timer:
+            self.after_cancel(self.slider_timer)
+        
+        # Debounce: wait 300ms before re-converting
+        self.slider_timer = self.after(300, self._convert_frames)
     
     def _on_font_size_change(self, *args):
         """Handle font size changes"""
